@@ -3,3 +3,5 @@ dependencies:
   lvgl/lvgl: "^8.4.0"
   espressif/esp_lvgl_port: "^2.6.0"
   espressif/esp_lcd_touch_gt911: "^1.1.0"
+  # Wi-Fi przez ESP32-C6 (SDIO, ESP-Hosted); ciągnie za sobą esp_hosted
+  espressif/esp_wifi_remote: ">=1.1.0"
