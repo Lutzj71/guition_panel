@@ -150,8 +150,8 @@ static esp_err_t touch_init(lv_disp_t *disp)
         .int_gpio_num = TOUCH_INT_GPIO,
         .levels = {.reset = 0, .interrupt = 0},
         .driver_data = &gt911_cfg,
-        // wg opisu płyty: mirror_y = 1; sprawdzić przy pierwszym uruchomieniu (patrz README)
-        .flags = {.swap_xy = 0, .mirror_x = 0, .mirror_y = 1},
+        // zweryfikowane na sprzęcie: odbicie w pionie wyłączone (z mirror_y=1 dotyk był odwrócony w pionie)
+        .flags = {.swap_xy = 0, .mirror_x = 0, .mirror_y = 0},
     };
     ESP_RETURN_ON_ERROR(esp_lcd_touch_new_i2c_gt911(tp_io, &tp_cfg, &tp), TAG, "GT911");
 

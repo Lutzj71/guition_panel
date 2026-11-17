@@ -80,9 +80,9 @@ sprawdź, czy wyprowadzenia 5 V na złączu LCD płyty nie niosą też sygnałó
 
 1. **Czarny ekran** – tablica init ST7701S i kolejność: reset GPIO5 → tablica → `esp_lcd_panel_init`.
    Sterownik `esp_lcd_st7701` z rejestru na tej płycie nie działa.
-2. **Kierunki dotyku** – w `board.c` przyjęto `mirror_y = 1`; dotknij lewego górnego i prawego dolnego
-   rogu i popraw `swap_xy` / `mirror_x` / `mirror_y`. Piny RST/INT dotyku: GPIO22/21 ze schematu
-   (przykłady Arduino mają `-1/-1`).
+2. **Dotyk** – sprawdzone na sprzęcie: `mirror_y = 0`, `swap_xy = 0`, `mirror_x = 0`. Piny RST/INT GT911
+   (GPIO22/21) są poprawne; sterownik musi dostać adres w `driver_data` (inaczej pomija wybór adresu
+   i odczyt konfiguracji się nie udaje).
 3. **Sterowanie MPG (najważniejsze).** Założenia kodu, których nie mogłem sprawdzić na sprzęcie:
    - znak `0x8B` *przełącza* tryb (nie ma komendy „ustaw”), więc panel wysyła go tylko gdy stan jest
      znany i inny od żądanego, albo – jednorazowo – gdy po 2,5 s od startu brak jakichkolwiek raportów;
