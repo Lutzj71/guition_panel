@@ -9,36 +9,68 @@ Firmware panelu dotykowego do wypalarki laserowej (stan na 2026-11-17). Część
 Użytkownik mówi po polsku – odpowiadaj po polsku. Foldery Panlee, Panlee_v3, LVGL_experiment nie mają
 z tym projektem nic wspólnego (wcześniej błędnie zakładano panel Smart Panlee 3,5").
 
+## Budowanie i wgrywanie (Windows)
+
+`idf.py` nie ma w PATH. Używany jest ESP-IDF 5.5.6 z instalacji ESPHome (`C:\esphome-idf`).
+Skrypt `tools\idf-build.ps1` ustawia środowisko i buduje z **kopii w `C:\gp`** (krótka ścieżka):
+
+```
+powershell -ExecutionPolicy Bypass -File tools\idf-build.ps1 -Cmd build
+powershell -ExecutionPolicy Bypass -File tools\idf-build.ps1 -Cmd flash -Port COM12
+```
+
+Dlaczego kopia: `esp_hosted` ma zagnieżdżone katalogi testowe, a przy ścieżce projektu
+`Documents\PlatformIO\...` rozpakowanie kończy się `WinError 206` (MAX_PATH; długie ścieżki wyłączone,
+brak admina). Wyniki builda są w `C:\gp\build`, nie w repo. Wymagana zmienna `ESP_IDF_VERSION=5.5`
+(inaczej Kconfig `esp_wifi_remote` pomija opcje `CONFIG_WIFI_RMT_*`). Po zmianie `sdkconfig.defaults`
+usuń `C:\gp\sdkconfig`, bo wygenerowany plik ma pierwszeństwo.
+
+Port COM panelu zmienia numer po resecie USB (widziano COM12, COM15) i na chwilę znika – sprawdź
+`[System.IO.Ports.SerialPort]::GetPortNames()`. Logi: USB-Serial-JTAG, 115200, reset przez RTS.
+Panic dekoduj `riscv32-esp-elf-addr2line -pfiaC -e C:\gp\build\guition_panel.elf <adres>`.
+
+Partycja aplikacji (`SINGLE_APP_LARGE`, 0x177000 B) ma wolne tylko ~7% – przy dalszej rozbudowie
+potrzebna własna tablica partycji (flash 16 MB).
+
 ## Ustalenia
 
-- ESP-IDF ≥ 5.4.2 (zalecane 5.5), cel `esp32p4`, układ rev v1.x (`CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y`).
+- ESP-IDF ≥ 5.4.2 (zalecane 5.5), cel `esp32p4`, układ rev v1.3 (`CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y`).
 - LVGL 8.4 + esp_lvgl_port; dotyk GT911; Wi-Fi przez ESP32-C6 (esp_wifi_remote / ESP-Hosted).
-- Wyświetlacz: ręczna tablica init ST7701S (komponent `esp_lcd_st7701` z rejestru daje czarny ekran).
-- Polskie znaki: Montserrat Medium (SIL OFL) osadzony w firmware, renderowany TinyTTF; ikony z wbudowanej czcionki LVGL.
+- Wyświetlacz: ręczna tablica init ST7701S (komponent `esp_lcd_st7701` z rejestru daje czarny ekran) – działa.
+- Polskie znaki: Montserrat Medium (SIL OFL) osadzony w firmware, TinyTTF; ikony z wbudowanej czcionki LVGL.
+  **`cache_size` w `lv_tiny_ttf_create_data_ex` (LVGL 8.4) jest w BAJTACH**, średnio px² na glif – mała
+  wartość daje tablicę haszującą o rozmiarze 0 i crash w `lv_lru_get`. `mk_font` liczy glify × px².
 - Łącze z płytą: UART0 na CN2 (GPIO37 TX, GPIO38 RX) ↔ USART3 płyty Creality (PB10/PB11), 115200;
   grblHAL z `MPG_ENABLE=2`, przełączanie znakiem 0x8B (przełącza, nie ustawia).
-- Ekrany: Główny, Ruch, Praca, Ustawienia (+edycja), Alarm, Pliki (karta SD), Wi-Fi.
+- Ekrany: Główny, Ruch, Praca, Ustawienia (+edycja), Alarm, Pliki (karta SD, podkatalogi), Wi-Fi.
   Makieta: https://claude.ai/artifact/QaSk7QgnDGDfL8GGXo8aZG
-- Strumieniowanie G-code z karty SD panelu metodą character counting (okno 120 B); upload plików przez
-  HTTP po Wi-Fi (bez uwierzytelniania – tylko sieć domowa).
-- Piny: LCD reset GPIO5, podświetlenie GPIO23, I2C SDA7/SCL8, dotyk RST22/INT21, SDMMC slot 0 (CLK43, CMD44,
-  D0–D3 = 39–42, zasilanie z LDO VO4), SDIO do C6 (CLK18, CMD19, D0–D3 = 14–17, reset C6 = GPIO54).
+- Strumieniowanie G-code z karty SD metodą character counting (okno 120 B); ścieżka pliku względem karty
+  (do 127 znaków, nazwa wpisu do 63). Upload przez HTTP po Wi-Fi tylko do katalogu głównego
+  (bez uwierzytelniania – tylko sieć domowa).
+- Piny: LCD reset GPIO5, podświetlenie GPIO23, I2C SDA7/SCL8, dotyk RST22/INT21 (adres 0x5D), SDMMC slot 0
+  (CLK43, CMD44, D0–D3 = 39–42, zasilanie z LDO VO4), SDIO do C6 (CLK18, CMD19, D0–D3 = 14–17, reset C6 = GPIO54).
   Źródła społecznościowe (ultramcu/guition-jc4880p443c-i-w, seobaeksol/JC4880P443C_I_W), nie producenta.
+- Zadanie `sys_evt` ma stos 4096 B (`CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE`); domyślne 2304 B nie
+  wystarczało dla handlera Wi-Fi (przepełnienie → pętla restartów).
+- GT911: sterownik musi dostać `driver_data` z adresem (`esp_lcd_touch_io_gt911_config_t`), inaczej pomija
+  sekwencję wyboru adresu i odczyt konfiguracji się nie udaje.
 
 ## Stan
 
-**Kod kompletny wg makiety, ale niezbudowany i nietestowany na sprzęcie.** ESP-IDF nie było zainstalowane
-w środowisku (jest tylko rozszerzenie VS Code). Sprawdzono jedynie składnię i API LVGL 8.4
-(`arm-none-eabi-gcc -fsyntax-only` na zaślepkach). Pliki ESP-IDF-specyficzne (`board.c`, `sdcard.c`,
-`wifi_mgr.c`, `http_upload.c`, nazwy komponentów w `main/CMakeLists.txt`) mogą wymagać poprawek przy
-pierwszym `idf.py build`.
+Zbudowane (ESP-IDF 5.5.6) i uruchomione na sprzęcie. **Sprawdzone na panelu:** wyświetlacz, dotyk
+(`mirror_y=0`), UI bez restartów, karta SD (FAT) z nawigacją po podkatalogach, start zadania z listy
+reaguje (bez maszyny).
 
-Następny krok: zainstalować ESP-IDF, `idf.py set-target esp32p4 && idf.py build`, poprawić błędy.
+**Niesprawdzone:**
+- Łącze z grblHAL (MPG): raporty stanu, jog, przełącznik sterowania, strumieniowanie – wymaga podłączenia
+  płyty Creality (planowane). Czy grblHAL wysyła pole `MPG:` i odpowiada na USART3 poza trybem MPG.
+- Wi-Fi: firmware ESP32-C6 ma 2.3.0, host oczekuje ~2.12 (log: `major version mismatch`). Aktualizacja
+  przez UART0 C6 na złączu JP1 (`C6_U0RXD`/`C6_U0TXD`/GND z konwertera 3,3 V, `C6_IO9` do masy + reset
+  `C6_CHIP_PU`; **przed flashowaniem C6 zatrzymać P4**, bo resetuje C6 przez GPIO54). Obraz
+  `https://esphome.github.io/esp-hosted-firmware/v2.12.9/network_adapter_esp32c6.bin` pod 0x10000,
+  potem `erase_region 0xd000 0x2000`. Szczegóły w README ultramcu, sekcja 1.
+- Jog ciągły, kompletne zadanie z karty, opisy kodów ALARM:n w `ui_alarm.c` (spisane z pamięci).
+- UART0 współdzielony z konsolą/flashowaniem (logi na USB-Serial-JTAG).
+- Ostrzeżenie `ldo: voltage value 0` przy montowaniu SD jest kosmetyczne (karta działa).
 
-## Niezweryfikowane założenia (szczegóły w README.md)
-
-- Czy grblHAL wysyła pole `MPG:` w raporcie i czy odpowiada na USART3 poza trybem MPG.
-- Orientacja dotyku (`mirror_y=1` założone), tablica init ST7701S, piny RST/INT dotyku.
-- Firmware ESP32-C6 trzeba zaktualizować z 2.3.0 do ~2.12; piny SDIO ustawić w menuconfig.
-- Opisy kodów ALARM:n w `ui_alarm.c` spisane z pamięci.
-- UART0 współdzielony z konsolą/flashowaniem (logi przeniesione na USB-Serial-JTAG).
+Szczegółowa lista kontrolna pierwszego uruchomienia: README.md.
