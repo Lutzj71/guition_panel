@@ -86,7 +86,7 @@ int sdcard_list(sd_file_t *out, int max)
     struct dirent *e;
     while (n < max && (e = readdir(d))) {
         if (e->d_type == DT_DIR || strlen(e->d_name) >= SD_NAME_MAX || !is_gcode(e->d_name)) continue;
-        char path[SD_NAME_MAX + 16];
+        char path[sizeof(SD_MOUNT_POINT) + 256];
         struct stat st;
         snprintf(path, sizeof path, SD_MOUNT_POINT "/%s", e->d_name);
         if (stat(path, &st) != 0) continue;

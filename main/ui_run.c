@@ -144,7 +144,7 @@ void ui_run_update(const grbl_status_t *st)
     cur = *st;
     gs_status_t gs;
     gcode_stream_get(&gs);
-    char b[96];
+    char b[192];
 
     ui_pill_set(pill, st);
     bool job = gs.state != GS_IDLE;

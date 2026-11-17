@@ -13,7 +13,7 @@
 
 #define RX_WINDOW  120      // bajtów w locie (bufor RX grblHAL jest większy; zapas na znaki czasu rzeczywistego)
 #define QCAP       40       // maks. linii w locie
-#define LINE_MAX   110      // maks. długość linii po oczyszczeniu (bez '\n')
+#define GS_LINE_MAX   110      // maks. długość linii po oczyszczeniu (bez '\n')
 
 static gs_status_t g;
 static SemaphoreHandle_t s_mtx;
@@ -21,7 +21,7 @@ static TaskHandle_t s_task;
 static volatile bool s_abort;
 
 // kolejka linii w locie (do liczenia znaków i raportowania błędnej linii)
-static char s_ql[QCAP][LINE_MAX + 1];
+static char s_ql[QCAP][GS_LINE_MAX + 1];
 static int s_qh, s_qn, s_inflight;
 
 static void ensure_init(void)
@@ -57,7 +57,7 @@ static int clean_line(const char *in, char *out)
         if (c == '(') { depth = 1; continue; }
         if (c == ';') break;
         if (isspace((unsigned char)c)) continue;
-        if (n >= LINE_MAX) return -1;
+        if (n >= GS_LINE_MAX) return -1;
         out[n++] = (char)toupper((unsigned char)c);
     }
     out[n] = 0;
@@ -79,7 +79,7 @@ static void stream_task(void *arg)
     FILE *f = fopen(path, "r");
     if (!f) { finish(GS_ERROR, "nie można otworzyć pliku"); s_task = NULL; vTaskDelete(NULL); }
 
-    char raw[256], cl[LINE_MAX + 1];
+    char raw[256], cl[GS_LINE_MAX + 1];
     bool have = false, eof = false;
     int len = 0;
 
