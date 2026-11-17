@@ -140,6 +140,8 @@ static esp_err_t touch_init(lv_disp_t *disp)
     io_cfg.scl_speed_hz = 100000;
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_i2c(bus, &io_cfg, &tp_io), TAG, "touch io");
 
+    // Bez driver_data sterownik pomija wybór adresu (INT=0 przy resecie => 0x5D) i INT pływa.
+    esp_lcd_touch_io_gt911_config_t gt911_cfg = {.dev_addr = io_cfg.dev_addr};
     esp_lcd_touch_handle_t tp = NULL;
     esp_lcd_touch_config_t tp_cfg = {
         .x_max = LCD_H_RES,
@@ -147,6 +149,7 @@ static esp_err_t touch_init(lv_disp_t *disp)
         .rst_gpio_num = TOUCH_RST_GPIO,
         .int_gpio_num = TOUCH_INT_GPIO,
         .levels = {.reset = 0, .interrupt = 0},
+        .driver_data = &gt911_cfg,
         // wg opisu płyty: mirror_y = 1; sprawdzić przy pierwszym uruchomieniu (patrz README)
         .flags = {.swap_xy = 0, .mirror_x = 0, .mirror_y = 1},
     };
