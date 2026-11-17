@@ -42,7 +42,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         }
         case WIFI_EVENT_SCAN_DONE: {
             uint16_t n = WIFI_SCAN_MAX;
-            wifi_ap_record_t rec[WIFI_SCAN_MAX];
+            static wifi_ap_record_t rec[WIFI_SCAN_MAX];   // statyczny: stos zadania sys_evt jest mały
             if (esp_wifi_scan_get_ap_records(&n, rec) != ESP_OK) n = 0;
             xSemaphoreTake(s_mtx, portMAX_DELAY);
             s_scan_n = 0;

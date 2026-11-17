@@ -10,9 +10,11 @@ extern const uint8_t ttf_end[] asm("_binary_Montserrat_Medium_ttf_end");
 
 lv_font_t *ui_f16, *ui_f20, *ui_f24, *ui_f32, *ui_f56, *ui_f68;
 
-static lv_font_t *mk_font(int px, size_t cache)
+// cache_glyphs: ile glifów trzymać w pamięci podręcznej. LVGL 8.4 przyjmuje rozmiar w BAJTACH i
+// zakłada średnio px*px bajtów na glif (tablica haszująca = bajty / px^2).
+static lv_font_t *mk_font(int px, size_t cache_glyphs)
 {
-    lv_font_t *f = lv_tiny_ttf_create_data_ex(ttf_start, ttf_end - ttf_start, px, cache);
+    lv_font_t *f = lv_tiny_ttf_create_data_ex(ttf_start, ttf_end - ttf_start, px, cache_glyphs * px * px);
     if (f) f->fallback = &lv_font_montserrat_20;   // ikony LV_SYMBOL_* i znaki spoza TTF
     return f;
 }
