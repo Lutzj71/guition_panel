@@ -74,24 +74,37 @@ static bool is_gcode(const char *n)
 
 static int cmp_name(const void *a, const void *b)
 {
-    return strcasecmp(((const sd_file_t *)a)->name, ((const sd_file_t *)b)->name);
+    const sd_file_t *x = a, *y = b;
+    if (x->is_dir != y->is_dir) return x->is_dir ? -1 : 1;     // katalogi na początku
+    return strcasecmp(x->name, y->name);
 }
 
-int sdcard_list(sd_file_t *out, int max)
+int sdcard_list(const char *subdir, sd_file_t *out, int max)
 {
     if (!s_card) return 0;
-    DIR *d = opendir(SD_MOUNT_POINT);
+    char dir[sizeof(SD_MOUNT_POINT) + SD_PATH_MAX + 2];
+    if (subdir && subdir[0]) snprintf(dir, sizeof dir, SD_MOUNT_POINT "/%.*s", SD_PATH_MAX - 1, subdir);
+    else snprintf(dir, sizeof dir, "%s", SD_MOUNT_POINT);
+    DIR *d = opendir(dir);
     if (!d) return 0;
     int n = 0;
     struct dirent *e;
     while (n < max && (e = readdir(d))) {
-        if (e->d_type == DT_DIR || strlen(e->d_name) >= SD_NAME_MAX || !is_gcode(e->d_name)) continue;
-        char path[sizeof(SD_MOUNT_POINT) + 256];
-        struct stat st;
-        snprintf(path, sizeof path, SD_MOUNT_POINT "/%s", e->d_name);
-        if (stat(path, &st) != 0) continue;
+        bool is_dir = e->d_type == DT_DIR;
+        if (e->d_name[0] == '.' || strlen(e->d_name) >= SD_NAME_MAX) continue;
+        if (is_dir && !strcasecmp(e->d_name, "System Volume Information")) continue;
+        if (!is_dir && !is_gcode(e->d_name)) continue;
+        uint32_t size = 0;
+        if (!is_dir) {
+            char path[sizeof dir + 256];
+            struct stat st;
+            snprintf(path, sizeof path, "%s/%s", dir, e->d_name);
+            if (stat(path, &st) != 0) continue;
+            size = (uint32_t)st.st_size;
+        }
         strcpy(out[n].name, e->d_name);
-        out[n].size = (uint32_t)st.st_size;
+        out[n].size = size;
+        out[n].is_dir = is_dir;
         n++;
     }
     closedir(d);

@@ -13,7 +13,9 @@
 static sd_file_t *files;          // w pamięci stałej, żeby nie obciążać stosu LVGL
 static int nfiles;
 static lv_obj_t *list, *info_lbl, *modal;
-static char chosen[SD_NAME_MAX];
+static char chosen[SD_PATH_MAX];  // wybrany plik: ścieżka względem karty
+static char cwd[SD_PATH_MAX];     // bieżący katalog względem karty ("" = główny)
+static lv_obj_t *path_lbl;
 static grbl_status_t cur;
 static uint32_t s_sig;
 
@@ -34,12 +36,33 @@ static void start_cb(lv_event_t *e)
     else ui_toast("%s", why ? why : "Nie można uruchomić");
 }
 
-static void file_cb(lv_event_t *e)
+// Ścieżka wpisu `name` w bieżącym katalogu; false, gdy nie mieści się w SD_PATH_MAX.
+static bool join_path(char *out, size_t n, const char *name)
+{
+    int w = cwd[0] ? snprintf(out, n, "%s/%s", cwd, name) : snprintf(out, n, "%s", name);
+    return w > 0 && (size_t)w < n;
+}
+
+static void go_up(void)
+{
+    char *slash = strrchr(cwd, '/');
+    if (slash) *slash = 0; else cwd[0] = 0;
+}
+
+static void entry_cb(lv_event_t *e)
 {
     int i = (int)(intptr_t)lv_event_get_user_data(e);
-    if (i < 0 || i >= nfiles || modal) return;
-    strncpy(chosen, files[i].name, sizeof chosen - 1);
-    chosen[sizeof chosen - 1] = 0;
+    if (modal) return;
+    if (i == -1) { go_up(); refresh_list(); return; }
+    if (i < 0 || i >= nfiles) return;
+    if (files[i].is_dir) {
+        char p[SD_PATH_MAX];
+        if (!join_path(p, sizeof p, files[i].name)) { ui_toast("Zbyt długa ścieżka"); return; }
+        strcpy(cwd, p);
+        refresh_list();
+        return;
+    }
+    if (!join_path(chosen, sizeof chosen, files[i].name)) { ui_toast("Zbyt długa ścieżka"); return; }
 
     modal = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(modal);
@@ -84,45 +107,62 @@ static void size_text(char *b, size_t n, uint32_t sz)
     else snprintf(b, n, "%.1f MB", sz / 1048576.0);
 }
 
+static void add_row(const char *icon, const char *name, lv_color_t name_col, const char *right_text, int idx)
+{
+    lv_obj_t *r = ui_button(list, NULL, ui_f20, entry_cb, (void *)(intptr_t)idx);
+    lv_obj_set_width(r, LV_PCT(100));
+    lv_obj_set_height(r, 76);
+    lv_obj_set_flex_flow(r, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_hor(r, 18, 0);
+    lv_obj_set_style_pad_column(r, 12, 0);
+    lv_obj_set_style_bg_opa(r, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_radius(r, 0, 0);
+    lv_obj_set_style_border_side(r, LV_BORDER_SIDE_BOTTOM, 0);
+    lv_obj_set_style_border_width(r, 1, 0);
+    lv_obj_set_style_border_color(r, C_DIV, 0);
+    lv_obj_set_flex_align(r, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    ui_label(r, icon, ui_f20, C_AMBER);
+    lv_obj_t *n = ui_label(r, name, ui_f20, name_col);
+    lv_obj_set_flex_grow(n, 1);
+    lv_label_set_long_mode(n, LV_LABEL_LONG_DOT);
+    if (right_text) ui_label(r, right_text, ui_f16, C_MUTED);
+}
+
 static void refresh_list(void)
 {
     lv_obj_clean(list);
     if (!files) files = heap_caps_malloc(sizeof(sd_file_t) * MAX_FILES, MALLOC_CAP_DEFAULT);
-    nfiles = files ? sdcard_list(files, MAX_FILES) : 0;
 
     if (!sdcard_mounted()) {
+        cwd[0] = 0;
+        nfiles = 0;
+        lv_label_set_text(path_lbl, "");
         lv_obj_t *l = ui_label(list, "Karta SD niedostępna.\nWłóż kartę i dotknij ikony odświeżania.", ui_f20, C_MUTED);
         lv_obj_set_width(l, LV_PCT(100));
         lv_obj_set_style_pad_all(l, 24, 0);
         return;
     }
+
+    nfiles = files ? sdcard_list(cwd, files, MAX_FILES) : 0;
+    char p[SD_PATH_MAX + 8];
+    snprintf(p, sizeof p, "/%s", cwd);
+    lv_label_set_text(path_lbl, p);
+
+    if (cwd[0]) add_row(LV_SYMBOL_LEFT, "..  (katalog wyżej)", C_MUTED, NULL, -1);
     if (nfiles == 0) {
-        lv_obj_t *l = ui_label(list, "Brak plików G-code (.nc .gcode .gc .ngc .tap .txt) w katalogu głównym karty.", ui_f20, C_MUTED);
+        lv_obj_t *l = ui_label(list, "Brak podkatalogów ani plików G-code (.nc .gcode .gc .ngc .tap .txt) w tym katalogu.", ui_f20, C_MUTED);
         lv_obj_set_width(l, LV_PCT(100));
         lv_obj_set_style_pad_all(l, 24, 0);
         return;
     }
     for (int i = 0; i < nfiles; i++) {
-        lv_obj_t *r = ui_button(list, NULL, ui_f20, file_cb, (void *)(intptr_t)i);
-        lv_obj_set_width(r, LV_PCT(100));
-        lv_obj_set_height(r, 76);
-        lv_obj_set_flex_flow(r, LV_FLEX_FLOW_ROW);
-        lv_obj_set_style_pad_hor(r, 18, 0);
-        lv_obj_set_style_pad_column(r, 12, 0);
-        lv_obj_set_style_bg_opa(r, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(r, 0, 0);
-        lv_obj_set_style_radius(r, 0, 0);
-        lv_obj_set_style_border_side(r, LV_BORDER_SIDE_BOTTOM, 0);
-        lv_obj_set_style_border_width(r, 1, 0);
-        lv_obj_set_style_border_color(r, C_DIV, 0);
-        lv_obj_set_flex_align(r, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        ui_label(r, LV_SYMBOL_FILE, ui_f20, C_AMBER);
-        lv_obj_t *n = ui_label(r, files[i].name, ui_f20, C_TEXT);
-        lv_obj_set_flex_grow(n, 1);
-        lv_label_set_long_mode(n, LV_LABEL_LONG_DOT);
-        char sz[24];
-        size_text(sz, sizeof sz, files[i].size);
-        ui_label(r, sz, ui_f16, C_MUTED);
+        if (files[i].is_dir) {
+            add_row(LV_SYMBOL_DIRECTORY, files[i].name, C_TEXT, LV_SYMBOL_RIGHT, i);
+        } else {
+            char sz[24];
+            size_text(sz, sizeof sz, files[i].size);
+            add_row(LV_SYMBOL_FILE, files[i].name, C_TEXT, sz, i);
+        }
     }
 }
 
@@ -133,6 +173,10 @@ lv_obj_t *ui_files_create(void)
     ui_header(scr, "Karta SD", SCR_MAIN, &right);
     lv_obj_t *rb = ui_button(right, LV_SYMBOL_REFRESH, ui_f24, rescan_cb, NULL);
     lv_obj_set_size(rb, 64, 64);
+
+    path_lbl = ui_label(scr, "", ui_f16, C_MUTED);
+    lv_obj_set_width(path_lbl, LV_PCT(100));
+    lv_label_set_long_mode(path_lbl, LV_LABEL_LONG_DOT);
 
     lv_obj_t *card = lv_obj_create(scr);
     lv_obj_remove_style_all(card);
@@ -150,6 +194,7 @@ lv_obj_t *ui_files_create(void)
     lv_label_set_long_mode(info_lbl, LV_LABEL_LONG_WRAP);
 
     modal = NULL;
+    cwd[0] = 0;
     s_sig = 0;
     if (!sdcard_mounted()) sdcard_mount();
     refresh_list();

@@ -154,7 +154,7 @@ bool gcode_stream_start(const char *name, const char **why)
 
     char path[sizeof g.name + 16];
     struct stat sb;
-    snprintf(path, sizeof path, SD_MOUNT_POINT "/%.63s", name);
+    snprintf(path, sizeof path, SD_MOUNT_POINT "/%.*s", SD_PATH_MAX - 1, name);
     if (stat(path, &sb) != 0)           { *why = "Nie znaleziono pliku"; return false; }
 
     xSemaphoreTake(s_mtx, portMAX_DELAY);

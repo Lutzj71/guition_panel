@@ -3,13 +3,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "sdcard.h"
+
 // Strumieniowanie pliku G-code z karty SD do grblHAL (character counting, okno 120 B).
 
 typedef enum { GS_IDLE, GS_RUNNING, GS_PAUSED, GS_DONE, GS_ERROR, GS_ABORTED } gs_state_t;
 
 typedef struct {
     gs_state_t state;
-    char name[64];
+    char name[SD_PATH_MAX];   // ścieżka względem karty
     uint32_t bytes_total, bytes_done;
     uint32_t lines_sent, lines_acked;
     int error;              // numer błędu grblHAL przy GS_ERROR
@@ -17,7 +19,7 @@ typedef struct {
     char message[64];       // opis problemu po stronie panelu (np. za długa linia)
 } gs_status_t;
 
-// Plik z katalogu głównego karty (sama nazwa). Zwraca false i wpisuje powód do *why przy odmowie.
+// Plik na karcie: ścieżka względem karty ("plik.nc" lub "katalog/plik.nc"). Zwraca false i wpisuje powód do *why przy odmowie.
 bool gcode_stream_start(const char *name, const char **why);
 void gcode_stream_pause(void);
 void gcode_stream_resume(void);

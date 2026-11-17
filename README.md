@@ -103,7 +103,8 @@ sprawdź, czy wyprowadzenia 5 V na złączu LCD płyty nie niosą też sygnałó
    Przy podłączonej płycie Creality flashowanie przez UART0 może się kłócić z jej TX; logi
    przeniesiono na USB-Serial-JTAG (nie sprawdziłem, czy to złącze USB-C jest wyprowadzone).
    Komunikaty ROM z rozruchu pójdą na GPIO37 do płyty – grblHAL powinien je zignorować.
-8. **Karta SD** – FAT, długie nazwy, tylko katalog główny; rozszerzenia `.nc .gcode .gc .ngc .tap .txt`.
+8. **Karta SD** – FAT, długie nazwy, nawigacja po podkatalogach (ścieżka do 127 znaków, nazwa wpisu do 63);
+   rozszerzenia `.nc .gcode .gc .ngc .tap .txt`. Wgrywanie przez HTTP trafia tylko do katalogu głównego.
 9. **Pamięć** – czcionki TinyTTF i bufory LVGL są w PSRAM (`CONFIG_SPIRAM_USE_MALLOC=y`).
 10. **Piny 5 V na JP1** są wyjściem, nie wejściem – zasilaj panel tylko przez CN2 albo USB-C.
 
