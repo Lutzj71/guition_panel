@@ -76,8 +76,9 @@ static void stream_task(void *arg)
 {
     char path[sizeof g.name + 16];
     snprintf(path, sizeof path, SD_MOUNT_POINT "/%s", g.name);
+    if (!sdcard_hold()) { finish(GS_ERROR, "brak karty SD"); s_task = NULL; vTaskDelete(NULL); }
     FILE *f = fopen(path, "r");
-    if (!f) { finish(GS_ERROR, "nie można otworzyć pliku"); s_task = NULL; vTaskDelete(NULL); }
+    if (!f) { sdcard_release(); finish(GS_ERROR, "nie można otworzyć pliku"); s_task = NULL; vTaskDelete(NULL); }
 
     char raw[256], cl[GS_LINE_MAX + 1];
     bool have = false, eof = false;
@@ -93,7 +94,11 @@ static void stream_task(void *arg)
         if (st == GS_PAUSED) { ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50)); continue; }
 
         if (!have && !eof) {
-            if (!fgets(raw, sizeof raw, f)) { eof = true; }
+            if (!fgets(raw, sizeof raw, f)) {
+                // błąd odczytu (np. wyjęta karta) to nie koniec pliku - nie wolno zgłosić "ukończono"
+                if (ferror(f)) { finish(GS_ERROR, "błąd odczytu karty SD"); continue; }
+                eof = true;
+            }
             else {
                 xSemaphoreTake(s_mtx, portMAX_DELAY);
                 g.bytes_done = (uint32_t)ftell(f);
@@ -131,6 +136,7 @@ static void stream_task(void *arg)
     }
 
     fclose(f);
+    sdcard_release();
     s_task = NULL;
     vTaskDelete(NULL);
 }

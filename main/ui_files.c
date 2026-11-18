@@ -96,7 +96,7 @@ static void entry_cb(lv_event_t *e)
 static void rescan_cb(lv_event_t *e)
 {
     if (!sdcard_mounted() && !sdcard_mount()) ui_toast("Nie wykryto karty SD");
-    s_sig = 0;
+    s_sig = sdcard_generation();
     refresh_list();
 }
 
@@ -137,7 +137,7 @@ static void refresh_list(void)
         cwd[0] = 0;
         nfiles = 0;
         lv_label_set_text(path_lbl, "");
-        lv_obj_t *l = ui_label(list, "Karta SD niedostępna.\nWłóż kartę i dotknij ikony odświeżania.", ui_f20, C_MUTED);
+        lv_obj_t *l = ui_label(list, "Brak karty SD.\nWłóż kartę - zostanie wykryta automatycznie.", ui_f20, C_MUTED);
         lv_obj_set_width(l, LV_PCT(100));
         lv_obj_set_style_pad_all(l, 24, 0);
         return;
@@ -195,8 +195,7 @@ lv_obj_t *ui_files_create(void)
 
     modal = NULL;
     cwd[0] = 0;
-    s_sig = 0;
-    if (!sdcard_mounted()) sdcard_mount();
+    s_sig = sdcard_generation();     // montowaniem zajmuje się zadanie nadzoru (sdcard_init)
     refresh_list();
     return scr;
 }
@@ -211,6 +210,13 @@ void ui_files_update(const grbl_status_t *st)
     else snprintf(b, sizeof b, "Wgrywanie plików przez Wi-Fi: połącz panel z siecią (Ustawienia › Panel › Wi-Fi).");
     lv_label_set_text(info_lbl, b);
 
-    uint32_t sig = sdcard_mounted();
-    if (sig != s_sig) { s_sig = sig; refresh_list(); }
+    // wyjęcie / włożenie (także zamiana karty) - wracamy do katalogu głównego nowej karty
+    uint32_t sig = sdcard_generation();
+    if (sig != s_sig) {
+        s_sig = sig;
+        cwd[0] = 0;
+        close_modal();               // okno "Uruchomić plik?" dotyczyło poprzedniej karty
+        ui_toast("%s", sdcard_mounted() ? "Wykryto kartę SD" : "Karta SD wyjęta");
+        refresh_list();
+    }
 }

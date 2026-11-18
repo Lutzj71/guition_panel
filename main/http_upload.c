@@ -53,16 +53,16 @@ static esp_err_t put_upload(httpd_req_t *req)
     if (q) *q = 0;
 
     if (!safe_name(clean)) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Niedozwolona nazwa (litery, cyfry, . _ -)");
-    if (!sdcard_mounted()) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Brak karty SD");
     if (gcode_stream_active()) {
         httpd_resp_set_status(req, "409 Conflict");
         return httpd_resp_send(req, "Zadanie w toku", HTTPD_RESP_USE_STRLEN);
     }
+    if (!sdcard_hold()) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Brak karty SD");
 
     char path[SD_NAME_MAX + 16];
     snprintf(path, sizeof path, SD_MOUNT_POINT "/%s", clean);
     FILE *f = fopen(path, "w");
-    if (!f) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Nie można utworzyć pliku");
+    if (!f) { sdcard_release(); return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Nie można utworzyć pliku"); }
 
     static char buf[2048];
     int left = req->content_len;
@@ -74,7 +74,9 @@ static esp_err_t put_upload(httpd_req_t *req)
         left -= n;
     }
     fclose(f);
-    if (!ok) { remove(path); return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Błąd zapisu"); }
+    if (!ok) remove(path);
+    sdcard_release();
+    if (!ok) { return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Błąd zapisu"); }
     ESP_LOGI(TAG, "zapisano %s (%d B)", clean, (int)req->content_len);
     return httpd_resp_send(req, "OK", HTTPD_RESP_USE_STRLEN);
 }

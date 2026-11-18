@@ -11,12 +11,6 @@
 
 static const char *TAG = "main";
 
-static void sd_task(void *arg)
-{
-    sdcard_mount();     // ekran Pliki dociąga kartę ponownie, jeśli ją włożono później
-    vTaskDelete(NULL);
-}
-
 void app_main(void)
 {
     esp_err_t err = nvs_flash_init();
@@ -34,6 +28,6 @@ void app_main(void)
     settings_init();
     ui_create(disp);
 
-    xTaskCreate(sd_task, "sd_mount", 4096, NULL, 3, NULL);
+    sdcard_init();       // montowanie i nadzór obecności karty w osobnym zadaniu
     wifi_mgr_init();     // w osobnym zadaniu - nie blokuje interfejsu, gdy C6 nie odpowiada
 }
