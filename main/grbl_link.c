@@ -48,9 +48,13 @@ static void parse_status(char *line)
     *end = 0;
     line++;  // za '<'
 
+    static bool first = true;
+    if (first) { first = false; ESP_LOGI(TAG, "pierwszy raport: <%s>", line); }
+
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     grbl_status_t n = s_st;
     xSemaphoreGive(s_mtx);
+    grbl_status_t prev = n;
 
     float px = n.mx, py = n.my;
     bool is_wpos = false, have_pos = false;
@@ -97,6 +101,9 @@ static void parse_status(char *line)
     if (n.state_id != GRBL_ST_ALARM) n.alarm = 0;
     n.valid = true;
 
+    if (!prev.valid || strcmp(prev.state, n.state)) ESP_LOGI(TAG, "stan: %s", n.state);
+    if (prev.mpg != n.mpg) ESP_LOGI(TAG, "MPG: %d (%s)", n.mpg, n.mpg == 1 ? "steruje panel" : n.mpg == 0 ? "steruje komputer" : "?");
+
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     s_st = n;
     s_last_report_us = esp_timer_get_time();
@@ -111,6 +118,7 @@ static void handle_line(char *line)
     }
     bool is_ok = !strcmp(line, "ok");
     bool is_err = !strncmp(line, "error:", 6);
+    if (!is_ok) ESP_LOGI(TAG, "< %s", line);     // komunikaty, błędy, alarmy, baner startowy
     if (is_ok || is_err || !strncmp(line, "ALARM:", 6)) {
         xSemaphoreTake(s_mtx, portMAX_DELAY);
         if (is_err) s_st.last_error = atoi(line + 6);
@@ -147,9 +155,21 @@ static void rx_task(void *arg)
 static void poll_task(void *arg)
 {
     int64_t t0 = esp_timer_get_time();
+    int64_t t_full = 0;
     bool auto_mpg_done = false;
     for (;;) {
-        grbl_send_realtime('?');
+        // Pole MPG: jest tylko w raporcie po zmianie trybu albo w pełnym raporcie (0x87).
+        // Dopóki stan nieznany (np. po restarcie panelu), co 3 s prosimy o pełny raport zamiast zwykłego.
+        int64_t now = esp_timer_get_time();
+        xSemaphoreTake(s_mtx, portMAX_DELAY);
+        bool need_full = s_st.valid && s_st.mpg < 0;
+        xSemaphoreGive(s_mtx);
+        if (need_full && now - t_full > 3000000LL) {
+            t_full = now;
+            grbl_send_realtime((char)0x87);
+        } else {
+            grbl_send_realtime('?');
+        }
         // Poza trybem MPG grblHAL nie odpowiada na tym porcie – jeśli po starcie cisza, przejmij sterowanie raz.
         if (!auto_mpg_done && s_last_report_us == 0 && (esp_timer_get_time() - t0) > AUTO_MPG_MS * 1000LL) {
             auto_mpg_done = true;
