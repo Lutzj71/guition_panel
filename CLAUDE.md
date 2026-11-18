@@ -62,11 +62,23 @@ potrzebna własna tablica partycji (flash 16 MB).
 
 Zbudowane (ESP-IDF 5.5.6) i uruchomione na sprzęcie. **Sprawdzone na panelu:** wyświetlacz, dotyk
 (`mirror_y=0`), UI bez restartów, karta SD (FAT) z nawigacją po podkatalogach, start zadania z listy
-reaguje (bez maszyny).
+reaguje (bez maszyny), wykrywanie wyjęcia/włożenia karty SD (nadzór co 2 s), Wi-Fi.
+
+**Łącze z grblHAL – sprawdzone 2026-11-18** (płyta z samym silnikiem Y, bez krańcówek): raporty stanu,
+przełącznik sterowania (MPG), odczyt `$$` i zapis ustawień, `$X`, jog (silnik Y się kręci).
+- Połączenie: panel CN2 TX0→PB11 (pin 4 złącza LCD płyty), RX0→PB10 (pin 3), GND→pin 9; 5V z płyty
+  (pin 10) tylko bez USB-C z komputera.
+- grblHAL odpowiada na USART3 także poza MPG: raporty na `?`, `$`-komendy, zwykłe linie → `error:78`.
+  Pole `MPG:` jest tylko w raporcie po zmianie trybu albo w pełnym (0x87) – panel wysyła 0x87, dopóki stan
+  nieznany. `error:78` ×~10 przy starcie panelu to płyta odpowiadająca na log bootloadera P4 (nieszkodliwe).
+- Płyta: wejścia E-stop/hold/start (PB15/13/12) są na złączu LCD zajętym przez panel → wyłączone
+  (`CONTROL_ENABLE=0`, repo płyty 3b7901b). Przy `HOMING_INIT_LOCK` `$X` po zimnym starcie zawsze daje
+  `error:46` – bez krańcówek trzeba wyłączyć bazowanie (`$22` bit 0; fabrycznie `$22=13`, **przywrócić po
+  montażu krańcówek**). Bez krańcówek `Pn:XYZP`.
+- Ekran Alarm ma przełącznik sterowania i wejście do Ustawień (inaczej z alarmu nie dało się wyjść).
 
 **Niesprawdzone:**
-- Łącze z grblHAL (MPG): raporty stanu, jog, przełącznik sterowania, strumieniowanie – wymaga podłączenia
-  płyty Creality (planowane). Czy grblHAL wysyła pole `MPG:` i odpowiada na USART3 poza trybem MPG.
+- Strumieniowanie zadania z karty na maszynę, bazowanie z krańcówkami, PWM lasera (polaryzacja `$16`).
 - Wi-Fi: **działa** (2026-11-18) – C6 zaktualizowany do 2.12.9 przez UART0 na złączu JP1 (`C6_U0RXD`/
   `C6_U0TXD`/GND z konwertera 3,3 V, `C6_IO9` do masy + reset `C6_CHIP_PU`; **przed flashowaniem C6
   zatrzymać P4**, bo resetuje C6 przez GPIO54; obraz z esphome.github.io/esp-hosted-firmware pod 0x10000,
@@ -74,7 +86,7 @@ reaguje (bez maszyny).
   `major version mismatch`, ale połączenie i HTTP działają stabilnie. Przy zrywaniu: przypiąć esp_hosted
   2.12.x albo wgrać C6 firmware 3.x. Oszczędzanie energii wyłączone (`WIFI_PS_NONE`) – z modem sleep
   ping ~200 ms i straty.
-- Jog ciągły, kompletne zadanie z karty, opisy kodów ALARM:n w `ui_alarm.c` (spisane z pamięci).
+- Jog ciągły, opisy kodów ALARM:n w `ui_alarm.c` (spisane z pamięci).
 - UART0 współdzielony z konsolą/flashowaniem (logi na USB-Serial-JTAG).
 - Ostrzeżenie `ldo: voltage value 0` przy montowaniu SD jest kosmetyczne (karta działa).
 

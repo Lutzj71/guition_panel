@@ -2,7 +2,7 @@
 
 #include "ui_common.h"
 
-static lv_obj_t *pill, *code_lbl, *title_lbl, *text_lbl;
+static lv_obj_t *pill, *code_lbl, *title_lbl, *text_lbl, *mpg_dot, *mpg_lbl;
 static grbl_status_t cur;
 
 static const struct { int code; const char *title; const char *text; } ALARMS[] = {
@@ -26,6 +26,10 @@ static const struct { int code; const char *title; const char *text; } ALARMS[] 
 static void home_cb(lv_event_t *e)   { grbl_send_line("$H"); }
 static void unlock_cb(lv_event_t *e) { grbl_send_line("$X"); }
 static void reset_cb(lv_event_t *e)  { grbl_send_realtime(0x18); }
+// Przy alarmie panel trzyma ten ekran, więc przełącznik sterowania i Ustawienia muszą być i tutaj
+// (np. wyłączenie bazowania $22 na stole bez krańcówek wymaga trybu MPG i ekranu Ustawień).
+static void mpg_cb(lv_event_t *e)      { grbl_mpg_toggle(); ui_toast("Przełączam sterowanie…"); }
+static void settings_cb(lv_event_t *e) { ui_goto(SCR_SETTINGS); }
 
 static lv_obj_t *action(lv_obj_t *parent, const char *name, const char *code, int h, lv_event_cb_t cb, bool accent)
 {
@@ -42,8 +46,17 @@ lv_obj_t *ui_alarm_create(void)
 
     lv_obj_t *hdr = ui_row(scr, 64);
     pill = ui_pill(hdr);
-    lv_obj_t *sub = ui_label(hdr, "Laser 2D", ui_f16, C_MUTED);
+    lv_obj_t *sub = ui_label(hdr, "", ui_f16, C_MUTED);
     lv_obj_set_flex_grow(sub, 1);
+    lv_obj_t *mb = ui_button(hdr, NULL, ui_f16, mpg_cb, NULL);
+    lv_obj_set_height(mb, 64);
+    lv_obj_set_style_pad_hor(mb, 14, 0);
+    lv_obj_set_flex_flow(mb, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(mb, 8, 0);
+    mpg_dot = ui_dot(mb, 11, C_DIM);
+    mpg_lbl = ui_label(mb, "—", ui_f16, C_TEXT);
+    lv_obj_t *sb = ui_button(hdr, LV_SYMBOL_SETTINGS, ui_f24, settings_cb, NULL);
+    lv_obj_set_size(sb, 64, 64);
 
     lv_obj_t *card = ui_card(scr);
     lv_obj_set_flex_grow(card, 1);
@@ -77,6 +90,9 @@ void ui_alarm_update(const grbl_status_t *st)
 {
     cur = *st;
     ui_pill_set(pill, st);
+    if (st->mpg == 1)      { lv_obj_set_style_bg_color(mpg_dot, C_AMBER, 0); lv_label_set_text(mpg_lbl, "Panel steruje"); }
+    else if (st->mpg == 0) { lv_obj_set_style_bg_color(mpg_dot, C_BLUE, 0);  lv_label_set_text(mpg_lbl, "Komputer steruje"); }
+    else                   { lv_obj_set_style_bg_color(mpg_dot, C_DIM, 0);   lv_label_set_text(mpg_lbl, "Sterowanie: ?"); }
     char b[32];
     snprintf(b, sizeof b, "ALARM:%d", st->alarm);
     lv_label_set_text(code_lbl, st->alarm ? b : "ALARM");
