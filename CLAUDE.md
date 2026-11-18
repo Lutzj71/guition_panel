@@ -2,7 +2,7 @@
 
 Firmware panelu dotykowego do wypalarki laserowej (stan na 2026-11-17). Część większego projektu:
 
-- płyta: `..\grblHAL_STM32F1xx` (Creality V4.2.7, STM32F103RET6, grblHAL; repo Lutzj71/STM32F1xx, gałąź `creality-v427-laser`)
+- płyta: `..\STM32F1xx` (Creality V4.2.7, STM32F103RET6, grblHAL; repo Lutzj71/STM32F1xx, gałąź `creality-v427-laser`)
 - obudowy: `..\laser_enclosure` (OpenSCAD, profil 2040; repo Lutzj71/laser_enclosure)
 - ten folder: ESP-IDF dla panelu **Guition JC4880P443C_I_W** (ESP32-P4 + ESP32-C6, 4,3", 480×800 pion, ST7701S, GT911)
 

@@ -2,7 +2,7 @@
 
 Firmware panelu dotykowego **Guition JC4880P443C_I_W** (ESP32-P4, 4,3", 480×800 pion, ST7701S, GT911)
 do wypalarki laserowej sterowanej przez grblHAL na płycie Creality V4.2.7
-(firmware płyty: `..\grblHAL_STM32F1xx`, obudowy: `..\laser_enclosure`).
+(firmware płyty: `..\STM32F1xx`, obudowy: `..\laser_enclosure`).
 
 **Stan: kod kompletny wg makiety, ale niezbudowany i nietestowany na sprzęcie.** ESP-IDF nie było
 dostępne w tej sesji. Sprawdzono tylko składnię i użycie API LVGL 8.4 (kompilator `-fsyntax-only`
