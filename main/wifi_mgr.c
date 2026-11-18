@@ -137,6 +137,9 @@ static void init_task(void *arg)
             s_info.connecting = true;
         }
         err = esp_wifi_start();
+        // Bez oszczędzania energii: panel ma stałe zasilanie, a modem sleep dawał ~200 ms opóźnień
+        // i gubione pakiety (wolny upload, zrywane żądania HTTP).
+        if (err == ESP_OK) esp_wifi_set_ps(WIFI_PS_NONE);
     }
     if (err == ESP_OK) {
         xSemaphoreTake(s_mtx, portMAX_DELAY);

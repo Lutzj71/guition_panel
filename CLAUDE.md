@@ -11,7 +11,10 @@ z tym projektem nic wspólnego (wcześniej błędnie zakładano panel Smart Panl
 
 ## Budowanie i wgrywanie (Windows)
 
-`idf.py` nie ma w PATH. Używany jest ESP-IDF 5.5.6 z instalacji ESPHome (`C:\esphome-idf`).
+`idf.py` nie ma w PATH. ESP-IDF 5.5.6 zainstalowany przez Espressif Installation Manager: źródła
+`C:\esphome-idf\v5.5.6\esp-idf`, narzędzia i venv Pythona `C:\Espressif\tools` (`python\v5.5.6\venv`).
+Systemowy Python 3.12 (`%LOCALAPPDATA%\Programs\Python\Python312`) ma esptool; `python` w PATH to alias
+Sklepu – używaj pełnej ścieżki albo `py -3.12`.
 Skrypt `tools\idf-build.ps1` ustawia środowisko i buduje z **kopii w `C:\gp`** (krótka ścieżka):
 
 ```
@@ -64,11 +67,13 @@ reaguje (bez maszyny).
 **Niesprawdzone:**
 - Łącze z grblHAL (MPG): raporty stanu, jog, przełącznik sterowania, strumieniowanie – wymaga podłączenia
   płyty Creality (planowane). Czy grblHAL wysyła pole `MPG:` i odpowiada na USART3 poza trybem MPG.
-- Wi-Fi: firmware ESP32-C6 ma 2.3.0, host oczekuje ~2.12 (log: `major version mismatch`). Aktualizacja
-  przez UART0 C6 na złączu JP1 (`C6_U0RXD`/`C6_U0TXD`/GND z konwertera 3,3 V, `C6_IO9` do masy + reset
-  `C6_CHIP_PU`; **przed flashowaniem C6 zatrzymać P4**, bo resetuje C6 przez GPIO54). Obraz
-  `https://esphome.github.io/esp-hosted-firmware/v2.12.9/network_adapter_esp32c6.bin` pod 0x10000,
-  potem `erase_region 0xd000 0x2000`. Szczegóły w README ultramcu, sekcja 1.
+- Wi-Fi: **działa** (2026-11-18) – C6 zaktualizowany do 2.12.9 przez UART0 na złączu JP1 (`C6_U0RXD`/
+  `C6_U0TXD`/GND z konwertera 3,3 V, `C6_IO9` do masy + reset `C6_CHIP_PU`; **przed flashowaniem C6
+  zatrzymać P4**, bo resetuje C6 przez GPIO54; obraz z esphome.github.io/esp-hosted-firmware pod 0x10000,
+  potem `erase_region 0xd000 0x2000`; README ultramcu, sekcja 1). Host ma esp_hosted 3.1.0, log zgłasza
+  `major version mismatch`, ale połączenie i HTTP działają stabilnie. Przy zrywaniu: przypiąć esp_hosted
+  2.12.x albo wgrać C6 firmware 3.x. Oszczędzanie energii wyłączone (`WIFI_PS_NONE`) – z modem sleep
+  ping ~200 ms i straty.
 - Jog ciągły, kompletne zadanie z karty, opisy kodów ALARM:n w `ui_alarm.c` (spisane z pamięci).
 - UART0 współdzielony z konsolą/flashowaniem (logi na USB-Serial-JTAG).
 - Ostrzeżenie `ldo: voltage value 0` przy montowaniu SD jest kosmetyczne (karta działa).
