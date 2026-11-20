@@ -18,6 +18,15 @@ static const char *DIR_TXT[9] = {"X− Y+", "Y+", "X+ Y+", "X−", "STOP", "X+",
 static const char *DIR_SYM[9] = {NULL, LV_SYMBOL_UP, NULL, LV_SYMBOL_LEFT, NULL, LV_SYMBOL_RIGHT, NULL, LV_SYMBOL_DOWN, NULL};
 
 static lv_timer_t *s_hold_timer;
+static lv_obj_t *fire_btn;
+static lv_timer_t *s_arm_timer;          // test lasera: pierwsze dotknięcie uzbraja na 3 s
+
+#define FIRE_S     10                    // moc testu (S10 = 1 % przy $30=1000)
+#define FIRE_SEC   1                     // czas impulsu w s (odmierza płyta przez G4)
+#define FIRE_TXT   "Test lasera"
+
+static void fire_disarm(void);
+
 static int s_hold_dx, s_hold_dy;
 
 static void send_jog(int dx, int dy, float dist, bool absolute_zero)
@@ -53,7 +62,7 @@ static void dir_cb(lv_event_t *e)
     int dx = DIRS[i][0], dy = DIRS[i][1];
 
     if (dx == 0 && dy == 0) {            // STOP
-        if (code == LV_EVENT_CLICKED) { hold_stop(); grbl_send_realtime((char)0x85); }
+        if (code == LV_EVENT_CLICKED) { hold_stop(); fire_disarm(); grbl_send_realtime((char)0x85); }
         return;
     }
     bool cont = STEPS[s_step] == 0.0f;
@@ -91,8 +100,52 @@ static void to_zero_cb(lv_event_t *e)
     if (ui_can_command(&cur)) send_jog(0, 0, 0, true);
 }
 
+static void fire_disarm(void)
+{
+    if (s_arm_timer) { lv_timer_del(s_arm_timer); s_arm_timer = NULL; }
+    if (fire_btn) {
+        ui_button_selected(fire_btn, false);       // przywraca kolory zwykłego przycisku
+        lv_obj_set_style_bg_color(fire_btn, C_BTN_PRESS, LV_STATE_PRESSED);
+        lv_obj_set_style_border_width(fire_btn, 1, 0);
+        lv_label_set_text(ui_button_label(fire_btn), FIRE_TXT);
+    }
+}
+
+static void fire_arm_timeout(lv_timer_t *t)
+{
+    s_arm_timer = NULL;      // timer jednorazowy - LVGL usuwa go sam
+    fire_disarm();
+}
+
+static void fire_cb(lv_event_t *e)
+{
+    if (!ui_can_command(&cur)) return;
+    if (cur.state_id != GRBL_ST_IDLE) { ui_toast("Test lasera tylko w stanie IDLE"); fire_disarm(); return; }
+    if (!s_arm_timer) {      // pierwsze dotknięcie: uzbrojenie
+        ui_button_danger(fire_btn);
+        lv_label_set_text(ui_button_label(fire_btn), "Dotknij - laser!");
+        s_arm_timer = lv_timer_create(fire_arm_timeout, 3000, NULL);
+        lv_timer_set_repeat_count(s_arm_timer, 1);
+        return;
+    }
+    fire_disarm();
+    // Tryb lasera ($32=1): M3 przy aktywnym G1 świeci bez ruchu; G4 trzyma impuls po stronie płyty,
+    // więc M5 wykona się nawet przy zerwanym łączu z panelem.
+    char b[32];
+    grbl_send_line("G1 F100");
+    snprintf(b, sizeof b, "M3 S%d", FIRE_S);
+    grbl_send_line(b);
+    snprintf(b, sizeof b, "G4 P%d", FIRE_SEC);
+    grbl_send_line(b);
+    grbl_send_line("M5");
+    grbl_send_line("G0");
+    ui_toast("Laser S%d przez %d s", FIRE_S, FIRE_SEC);
+}
+
 static void gone_cb(lv_event_t *e)
 {
+    fire_disarm();
+    fire_btn = NULL;
     hold_stop();    // ekran usuwany w trakcie trzymania - nie zostawiaj timera ani ruchu
 }
 
@@ -178,6 +231,8 @@ lv_obj_t *ui_jog_create(void)
     lv_obj_set_flex_grow(b1, 1); lv_obj_set_height(b1, 68);
     lv_obj_t *b2 = ui_button(r3b, "Do zera", ui_f20, to_zero_cb, NULL);
     lv_obj_set_flex_grow(b2, 1); lv_obj_set_height(b2, 68);
+    fire_btn = ui_button(r3b, FIRE_TXT, ui_f20, fire_cb, NULL);
+    lv_obj_set_flex_grow(fire_btn, 1); lv_obj_set_height(fire_btn, 68);
     return scr;
 }
 
